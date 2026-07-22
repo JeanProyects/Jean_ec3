@@ -1,0 +1,7 @@
+FROM postgres:16
+
+ENV POSTGRES_DB=db_matriculas_jean
+ENV POSTGRES_USER=root
+ENV POSTGRES_PASSWORD=root
+
+EXPOSE 5432
