@@ -1,0 +1,110 @@
+name: jean_ec3
+
+services:
+
+  postgres:
+    image: postgres:16
+    container_name: jean-postgres
+    environment:
+      POSTGRES_DB: db_matriculas_jean
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: on-failure
+
+  keycloak:
+    build:
+      context: ./docker/keycloak
+      dockerfile: Dockerfile
+    container_name: jean-keycloak
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+    restart: on-failure
+
+  ms-descubridor:
+    build:
+      context: .
+      dockerfile: ms-descubridor/Dockerfile
+    container_name: jean-ms-descubridor
+    ports:
+      - "8761:8761"
+    restart: on-failure
+
+  ms-configserver:
+    build:
+      context: .
+      dockerfile: ms-configserver/Dockerfile
+    container_name: jean-ms-configserver
+    ports:
+      - "8888:8888"
+    restart: on-failure
+
+  ms-curso:
+    build:
+      context: .
+      dockerfile: ms-curso/Dockerfile
+    container_name: jean-ms-curso
+    environment:
+      CONFIG_SERVER_URL: http://ms-configserver:8888/
+      DB_URL: jdbc:postgresql://postgres:5432/db_matriculas_jean
+      DB_USER: root
+      DB_PASSWORD: root
+      EUREKA_URL: http://ms-descubridor:8761/eureka/
+    ports:
+      - "8083:8083"
+    depends_on:
+      - postgres
+      - ms-configserver
+      - ms-descubridor
+    restart: on-failure
+
+  ms-matricula:
+    build:
+      context: .
+      dockerfile: ms-matricula/Dockerfile
+    container_name: jean-ms-matricula
+    environment:
+      CONFIG_SERVER_URL: http://ms-configserver:8888/
+      DB_URL: jdbc:postgresql://postgres:5432/db_matriculas_jean
+      DB_USER: root
+      DB_PASSWORD: root
+      EUREKA_URL: http://ms-descubridor:8761/eureka/
+      CURSO_URL: http://ms-curso:8083/v1/cursos
+    ports:
+      - "8084:8084"
+    depends_on:
+      - postgres
+      - ms-configserver
+      - ms-descubridor
+      - ms-curso
+    restart: on-failure
+
+  demogw:
+    build:
+      context: .
+      dockerfile: demogw/Dockerfile
+    container_name: jean-demogw
+    environment:
+      EUREKA_URL: http://ms-descubridor:8761/eureka/
+      CURSO_URI: http://ms-curso:8083
+      MATRICULA_URI: http://ms-matricula:8084
+      KEYCLOAK_ISSUER_URI: http://localhost:8080/realms/spring-realm
+      KEYCLOAK_JWK_SET_URI: http://keycloak:8080/realms/spring-realm/protocol/openid-connect/certs
+    ports:
+      - "9090:9090"
+    depends_on:
+      - keycloak
+      - ms-descubridor
+      - ms-curso
+      - ms-matricula
+    restart: on-failure
+
+volumes:
+  postgres_data:
